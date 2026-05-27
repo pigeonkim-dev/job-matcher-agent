@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: job-matcher-agent
+  datasource:
+    url: jdbc:postgresql://localhost:5432/job_matcher_agent
+    username: user
+    password: ""
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: true
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
