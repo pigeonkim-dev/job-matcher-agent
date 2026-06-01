@@ -1,0 +1,5 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none     # 운영에서는 절대 테이블 변경 안 함
+    show-sql: false       # SQL 출력 안 함

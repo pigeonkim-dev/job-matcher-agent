@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "user_profile")
 @Getter
@@ -23,9 +25,13 @@ public class UserProfile {
 
     private Integer payTarget;
 
+    private String jobTitle;  // 희망 직무
+
     @Column(columnDefinition = "TEXT")
     private String preferredCategories;
 
     @Column(columnDefinition = "TEXT")
     private String avoidKeywords;
+
+    private LocalDateTime createTime;
 }
