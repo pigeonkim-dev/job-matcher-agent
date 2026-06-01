@@ -7,6 +7,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -21,17 +22,8 @@ public class JobCrawlerService {
         this.jobPostingRepository = jobPostingRepository;
     }
 
-    // 기존 메서드 — 텍스트만 반환
-    public String fetchPageContent(String url) throws Exception {
-        Document doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0")
-                .timeout(10000)
-                .get();
-        return doc.text();
-    }
-
     // 새 메서드 — 크롤링 + DB 저장까지
-    public JobPosting fetchAndSave(String url) throws Exception {
+    public JobPosting fetchAndSave(String url) throws IOException {
 
         // 이미 저장된 URL이면 크롤링 없이 기존 데이터 반환
         Optional<JobPosting> existing = jobPostingRepository.findByUrl(url);
@@ -39,10 +31,7 @@ public class JobCrawlerService {
             return existing.get();
         }
 
-        Document doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0")
-                .timeout(10000)
-                .get();
+        Document doc = fetchDocument(url);
 
         Element companyLink = doc.selectFirst("a[data-company-name]");
 
@@ -58,5 +47,16 @@ public class JobCrawlerService {
         posting.setFetchedAt(LocalDateTime.now());
 
         return jobPostingRepository.save(posting);
+    }
+
+    public String fetchPageContent(String url) throws IOException {
+        return fetchDocument(url).text();
+    }
+
+    private Document fetchDocument(String url) throws IOException {
+        return Jsoup.connect(url)
+                .userAgent("Mozilla/5.0")
+                .timeout(10000)
+                .get();
     }
 }
