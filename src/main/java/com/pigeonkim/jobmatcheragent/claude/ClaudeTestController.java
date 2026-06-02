@@ -1,6 +1,7 @@
 package com.pigeonkim.jobmatcheragent.claude;
 
 import com.pigeonkim.jobmatcheragent.crawler.JobCrawlerService;
+import com.pigeonkim.jobmatcheragent.crawler.WantedCrawler;
 import com.pigeonkim.jobmatcheragent.domain.*;
 import com.pigeonkim.jobmatcheragent.matching.MatchingEngine;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -62,5 +65,27 @@ public class ClaudeTestController {
         return "score: " + result.getScore() +
                 "\nkeywords: " + result.getMatchedKeywords() +
                 "\nsummary: " + result.getSummary();
+    }
+    @Autowired
+    private WantedCrawler wantedCrawler;
+
+    @GetMapping("/wanted/test")
+    public String wantedTest() {
+        List<String> keywords = List.of(
+                "Spring Boot",
+                "Java 백엔드",
+                "서버 개발자 Java"
+        );
+
+        int saved = 0;
+        for (String keyword : keywords) {
+            List<String> urls = wantedCrawler.searchJobUrls(keyword);
+            for (String url : urls) {
+                wantedCrawler.parseJobPosting(url);
+                saved++;
+            }
+        }
+
+        return "수집 완료: " + saved + "건";
     }
 }
