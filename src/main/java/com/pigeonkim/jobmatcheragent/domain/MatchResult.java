@@ -30,6 +30,7 @@ public class MatchResult {
 
     private  Integer score;
 
+    @Column(columnDefinition = "TEXT")
     private String summary;
 
     @CreationTimestamp
