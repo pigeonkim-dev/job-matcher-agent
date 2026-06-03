@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pigeonkim.jobmatcheragent.claude.ClaudeClient;
 import com.pigeonkim.jobmatcheragent.domain.*;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class MatchingEngine {
@@ -22,8 +24,15 @@ public class MatchingEngine {
         String prompt = buildPrompt(userProfile, jobPosting);
         String response = claudeClient.sendMessage(prompt);
 
+        // Claude가 ```json ... ``` 으로 감쌀 때 제거
+        String cleanResponse = response
+                .replaceAll("```json", "")
+                .replaceAll("```", "")
+                .trim();
+
         ObjectMapper objectMapper = new ObjectMapper();
-        Map<String, Object> parsed = objectMapper.readValue(response, Map.class);
+        Map<String, Object> parsed = objectMapper.readValue(cleanResponse,
+                new TypeReference<Map<String, Object>>() {});
 
         MatchResult result = new MatchResult();
         result.setUserProfileId(userProfile.getId());
@@ -66,5 +75,37 @@ public class MatchingEngine {
                 jobPosting.getCompany(),
                 jobPosting.getDescription()
         );
+    }
+
+    public MatchResult analyzeIfNeeded(UserProfile userProfile, JobPosting jobPosting) throws Exception {
+
+        Optional<MatchResult> existing = matchResultRepository
+                .findFirstByJobPostingIdOrderByCreatedAtDesc(jobPosting.getId());
+
+        // ① 기존 분석 없음 → 신규 공고
+        if (existing.isEmpty()) {
+            return analyzeWithReason(userProfile, jobPosting, "신규 공고");
+        }
+
+        MatchResult prev = existing.get();
+
+        // ② 프로필이 마지막 분석 이후 수정됨
+        if (userProfile.getUpdatedAt() != null &&
+                userProfile.getUpdatedAt().isAfter(prev.getCreatedAt())) {
+            return analyzeWithReason(userProfile, jobPosting, "프로필 변경");
+        }
+
+        // ③ 변경 없음 → 건너뜀
+        return prev;
+    }
+
+    private MatchResult analyzeWithReason(UserProfile userProfile, JobPosting jobPosting, String reason) throws Exception {
+        // 기존 결과 삭제 후 새로 분석
+        matchResultRepository.findFirstByJobPostingIdOrderByCreatedAtDesc(jobPosting.getId())
+                .ifPresent(matchResultRepository::delete);
+
+        MatchResult result = analyze(userProfile, jobPosting);
+        result.setAnalysisReason(reason);
+        return matchResultRepository.save(result);
     }
 }

@@ -9,7 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "match_result")
+@Table(name = "match_result", uniqueConstraints = {@UniqueConstraint(columnNames = "job_posting_id")})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -35,4 +35,7 @@ public class MatchResult {
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String analysisReason; // "신규 공고" / "프로필 변경"
 }

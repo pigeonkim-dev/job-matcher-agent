@@ -57,14 +57,20 @@ public class ClaudeTestController {
         UserProfile userProfile = userProfileRepository.findById(1L)
                 .orElseThrow(() -> new RuntimeException("UserProfile 없음"));
 
-        JobPosting jobPosting = jobPostingRepository.findById(2L)
+        // 가장 최근 저장된 공고로 테스트
+        JobPosting jobPosting = jobPostingRepository.findAll().stream()
+                .filter(j -> j.getDescription() != null)
+                .findFirst()
                 .orElseThrow(() -> new RuntimeException("JobPosting 없음"));
 
         MatchResult result = matchingEngine.analyze(userProfile, jobPosting);
 
-        return "score: " + result.getScore() +
-                "\nkeywords: " + result.getMatchedKeywords() +
-                "\nsummary: " + result.getSummary();
+        return "=== 매칭 결과 ===\n" +
+                "공고: " + jobPosting.getTitle() + " / " + jobPosting.getCompany() + "\n" +
+                "점수: " + result.getScore() + "\n" +
+                "키워드: " + result.getMatchedKeywords() + "\n" +
+                "분석: " + result.getRequirementAnalysis() + "\n" +
+                "요약: " + result.getSummary();
     }
     @Autowired
     private WantedCrawler wantedCrawler;

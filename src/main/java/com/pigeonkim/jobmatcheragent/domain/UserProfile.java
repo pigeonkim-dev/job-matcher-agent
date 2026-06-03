@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -34,4 +35,7 @@ public class UserProfile {
     private String avoidKeywords;
 
     private LocalDateTime createTime;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }
