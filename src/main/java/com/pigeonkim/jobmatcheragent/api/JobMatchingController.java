@@ -1,8 +1,10 @@
 package com.pigeonkim.jobmatcheragent.api;
 
 import com.pigeonkim.jobmatcheragent.crawler.WantedCrawler;
+import com.pigeonkim.jobmatcheragent.digest.DailyDigestService;
 import com.pigeonkim.jobmatcheragent.domain.*;
 import com.pigeonkim.jobmatcheragent.matching.MatchingEngine;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +18,8 @@ public class JobMatchingController {
     private final MatchResultRepository matchResultRepository;
     private final WantedCrawler wantedCrawler;
     private final MatchingEngine matchingEngine;
+    @Autowired
+    private DailyDigestService dailyDigestService;
 
     public JobMatchingController(
             UserProfileRepository userProfileRepository,
@@ -97,5 +101,11 @@ public class JobMatchingController {
         profile.setPayTarget(updated.getPayTarget());
         profile.setJobTitle(updated.getJobTitle());
         return userProfileRepository.save(profile);
+    }
+
+    @PostMapping("/digest/test")
+    public String digestTest() {
+        dailyDigestService.send();
+        return "Slack 전송 완료";
     }
 }

@@ -6,18 +6,27 @@ import com.pigeonkim.jobmatcheragent.domain.*;
 import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.type.TypeReference;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import com.pigeonkim.jobmatcheragent.domain.FeedbackLog;
+import com.pigeonkim.jobmatcheragent.domain.FeedbackLogRepository;
+import com.pigeonkim.jobmatcheragent.domain.FeedbackType;
 
 @Service
 public class MatchingEngine {
 
     private final ClaudeClient claudeClient;
     private final MatchResultRepository matchResultRepository;
+    private final FeedbackLogRepository feedbackLogRepository;
 
-    public MatchingEngine(ClaudeClient claudeClient, MatchResultRepository matchResultRepository) {
+    public MatchingEngine(ClaudeClient claudeClient, MatchResultRepository matchResultRepository,
+                          FeedbackLogRepository feedbackLogRepository) {
         this.claudeClient = claudeClient;
         this.matchResultRepository = matchResultRepository;
+        this.feedbackLogRepository = feedbackLogRepository;
     }
 
     public MatchResult analyze(UserProfile userProfile, JobPosting jobPosting) throws Exception {
@@ -32,7 +41,8 @@ public class MatchingEngine {
 
         ObjectMapper objectMapper = new ObjectMapper();
         Map<String, Object> parsed = objectMapper.readValue(cleanResponse,
-                new TypeReference<Map<String, Object>>() {});
+                new TypeReference<Map<String, Object>>() {
+                });
 
         MatchResult result = new MatchResult();
         result.setUserProfileId(userProfile.getId());
@@ -46,31 +56,50 @@ public class MatchingEngine {
     }
 
     private String buildPrompt(UserProfile userProfile, JobPosting jobPosting) {
+        // 피드백 이력 조회
+        List<FeedbackLog> interested = feedbackLogRepository.findByFeedbackType(FeedbackType.INTERESTED);
+        List<FeedbackLog> notInterested = feedbackLogRepository.findByFeedbackType(FeedbackType.NOT_INTERESTED);
+
+        String interestedSummary = interested.stream()
+                .map(f -> f.getMatchResult().getJobPostingId().toString())
+                .collect(Collectors.joining(", "));
+
+        String notInterestedSummary = notInterested.stream()
+                .map(f -> f.getMatchResult().getJobPostingId().toString())
+                .collect(Collectors.joining(", "));
+
         return String.format("""
-                아래 개발자 프로필과 채용 공고를 분석하고 반드시 JSON 형식으로만 답하세요.
-                다른 설명 없이 JSON만 출력하세요.
-                
-                [개발자 프로필]
-                경력 및 소개: %s
-                선호 카테고리: %s
-                기피 키워드: %s
-                
-                [채용 공고]
-                제목: %s
-                회사: %s
-                내용: %s
-                
-                아래 JSON 형식으로만 답하세요:
-                {
-                  "matchedKeywords": "일치하는 키워드들 (쉼표로 구분)",
-                  "requirementAnalysis": "자격요건 충족 여부 분석 (2-3문장)",
-                  "score": 75,
-                  "summary": "종합 요약 및 지원 여부 추천"
-                }
-                """,
+                    아래 개발자 프로필과 채용 공고를 분석하고 반드시 JSON 형식으로만 답하세요.
+                    다른 설명 없이 JSON만 출력하세요.
+                    
+                    [개발자 프로필]
+                    경력 및 소개: %s
+                    선호 카테고리: %s
+                    기피 키워드: %s
+                    
+                    [사용자 피드백 이력]
+                    관심있음 공고 ID: %s
+                    관심없음 공고 ID: %s
+                    (위 피드백 이력을 참고해서 사용자 성향을 반영한 점수를 매겨주세요)
+                    
+                    [채용 공고]
+                    제목: %s
+                    회사: %s
+                    내용: %s
+                    
+                    아래 JSON 형식으로만 답하세요:
+                    {
+                      "matchedKeywords": "일치하는 키워드들 (쉼표로 구분)",
+                      "requirementAnalysis": "자격요건 충족 여부 분석 (2-3문장)",
+                      "score": 75,
+                      "summary": "종합 요약 및 지원 여부 추천"
+                    }
+                    """,
                 userProfile.getResumeContent(),
                 userProfile.getPreferredCategories(),
                 userProfile.getAvoidKeywords(),
+                interestedSummary.isEmpty() ? "없음" : interestedSummary,
+                notInterestedSummary.isEmpty() ? "없음" : notInterestedSummary,
                 jobPosting.getTitle(),
                 jobPosting.getCompany(),
                 jobPosting.getDescription()
