@@ -51,55 +51,67 @@ public class MatchingEngine {
         result.setRequirementAnalysis((String) parsed.get("requirementAnalysis"));
         result.setScore((Integer) parsed.get("score"));
         result.setSummary((String) parsed.get("summary"));
+        result.setTechScore((Integer) parsed.get("techScore"));
+        result.setExperienceScore((Integer) parsed.get("experienceScore"));
+        result.setPreferenceScore((Integer) parsed.get("preferenceScore"));
+        result.setRiskFactors((String) parsed.get("riskFactors"));
+        result.setCoverLetterKeywords((String) parsed.get("coverLetterKeywords"));
 
         return matchResultRepository.save(result);
     }
 
     private String buildPrompt(UserProfile userProfile, JobPosting jobPosting) {
-        // 피드백 이력 조회
         List<FeedbackLog> interested = feedbackLogRepository.findByFeedbackType(FeedbackType.INTERESTED);
         List<FeedbackLog> notInterested = feedbackLogRepository.findByFeedbackType(FeedbackType.NOT_INTERESTED);
 
-        String interestedSummary = interested.stream()
-                .map(f -> f.getMatchResult().getJobPostingId().toString())
+        // 공고 ID 대신 matchedKeywords 추출
+        String interestedKeywords = interested.stream()
+                .map(f -> f.getMatchResult().getMatchedKeywords())
+                .filter(k -> k != null && !k.isBlank())
                 .collect(Collectors.joining(", "));
 
-        String notInterestedSummary = notInterested.stream()
-                .map(f -> f.getMatchResult().getJobPostingId().toString())
+        String notInterestedKeywords = notInterested.stream()
+                .map(f -> f.getMatchResult().getMatchedKeywords())
+                .filter(k -> k != null && !k.isBlank())
                 .collect(Collectors.joining(", "));
 
         return String.format("""
-                    아래 개발자 프로필과 채용 공고를 분석하고 반드시 JSON 형식으로만 답하세요.
-                    다른 설명 없이 JSON만 출력하세요.
-                    
-                    [개발자 프로필]
-                    경력 및 소개: %s
-                    선호 카테고리: %s
-                    기피 키워드: %s
-                    
-                    [사용자 피드백 이력]
-                    관심있음 공고 ID: %s
-                    관심없음 공고 ID: %s
-                    (위 피드백 이력을 참고해서 사용자 성향을 반영한 점수를 매겨주세요)
-                    
-                    [채용 공고]
-                    제목: %s
-                    회사: %s
-                    내용: %s
-                    
-                    아래 JSON 형식으로만 답하세요:
-                    {
-                      "matchedKeywords": "일치하는 키워드들 (쉼표로 구분)",
-                      "requirementAnalysis": "자격요건 충족 여부 분석 (2-3문장)",
-                      "score": 75,
-                      "summary": "종합 요약 및 지원 여부 추천"
-                    }
-                    """,
+                아래 개발자 프로필과 채용 공고를 분석하고 반드시 JSON 형식으로만 답하세요.
+                다른 설명 없이 JSON만 출력하세요.
+                
+                [개발자 프로필]
+                경력 및 소개: %s
+                선호 카테고리: %s
+                기피 키워드: %s
+                
+                [사용자 피드백 이력]
+                관심있음 공고의 공통 키워드: %s
+                관심없음 공고의 공통 키워드: %s
+                (위 키워드 패턴을 참고해서 사용자 성향을 반영한 점수를 매겨주세요)
+                
+                [채용 공고]
+                제목: %s
+                회사: %s
+                내용: %s
+                
+                아래 JSON 형식으로만 답하세요:
+                {
+                  "matchedKeywords": "일치하는 키워드들 (쉼표로 구분)",
+                  "requirementAnalysis": "자격요건 충족 여부 분석 (2-3문장)",
+                  "techScore": 80,
+                  "experienceScore": 70,
+                  "preferenceScore": 90,
+                  "score": 80,
+                  "riskFactors": "우려사항 (1-2문장)",
+                  "coverLetterKeywords": "자소서에 강조할 키워드들 (쉼표로 구분)",
+                  "summary": "종합 요약 및 지원 여부 추천"
+                }
+                """,
                 userProfile.getResumeContent(),
                 userProfile.getPreferredCategories(),
                 userProfile.getAvoidKeywords(),
-                interestedSummary.isEmpty() ? "없음" : interestedSummary,
-                notInterestedSummary.isEmpty() ? "없음" : notInterestedSummary,
+                interestedKeywords.isEmpty() ? "없음" : interestedKeywords,
+                notInterestedKeywords.isEmpty() ? "없음" : notInterestedKeywords,
                 jobPosting.getTitle(),
                 jobPosting.getCompany(),
                 jobPosting.getDescription()

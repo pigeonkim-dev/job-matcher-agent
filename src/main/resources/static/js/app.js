@@ -82,7 +82,23 @@ async function loadResults() {
                 <span class="score">${r.score != null ? r.score + '점' : '-'}</span>
             </div>
             ${r.analysisReason ? `<div class="reason-badge">🔄 ${r.analysisReason}</div>` : ''}
+
+            <!-- 항목별 점수 -->
+            <div class="score-breakdown">
+                <span>⚙️ 기술 ${r.techScore != null ? r.techScore + '점' : '-'}</span>
+                <span>📅 경력 ${r.experienceScore != null ? r.experienceScore + '점' : '-'}</span>
+                <span>❤️ 선호 ${r.preferenceScore != null ? r.preferenceScore + '점' : '-'}</span>
+            </div>
+
             <div class="result-keywords">🏷️ ${r.matchedKeywords || '-'}</div>
+            <div class="result-analysis">📊 ${r.requirementAnalysis || '-'}</div>
+
+            <!-- 우려사항 -->
+            ${r.riskFactors ? `<div class="result-risk">⚠️ ${r.riskFactors}</div>` : ''}
+
+            <!-- 자소서 키워드 -->
+            ${r.coverLetterKeywords ? `<div class="result-cover">✏️ 자소서 키워드: ${r.coverLetterKeywords}</div>` : ''}
+
             <div class="result-summary">📋 ${r.summary || '-'}</div>
             <a href="${r.jobUrl}" target="_blank" class="job-link">공고 보기 →</a>
         </div>
