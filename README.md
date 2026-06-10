@@ -14,7 +14,7 @@
 ## Modules
 
 - **UserProfile** — 이력서, 페이 기준, 선호/회피 카테고리 등 본인 분석 데이터
-- **JobCrawler** — 원티드, 사람인, 잡알리오 등에서 공고 수집
+- **JobCrawler** — 구인/구직 사이트에서 공고 수집
 - **MatchingEngine** — Claude API 기반 매칭 점수 + 우려사항 + 자소서 키워드 분석
 - **DailyDigest** — 매일 아침 슬랙으로 일일 리포트 전송
 - **FeedbackLoop** — 본인 피드백을 학습해 개인화 정확도 향상
