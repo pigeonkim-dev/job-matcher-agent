@@ -22,7 +22,7 @@
 ## Modules
 
 - **UserProfile** — 이력서, 연봉 기준, 선호/회피 카테고리
-- **JobCrawler** — 구인 구직 사이트 + 스케줄링 (매일 5회)
+- **JobCrawler** — Wanted API 크롤링 + 스케줄링 (매일 5회)
 - **MatchingEngine** — Claude API 매칭 분석 (항목별 점수 + 자소서 키워드)
 - **DailyDigest** — 매일 오전 8시 Slack 자동 전송
 - **FeedbackLoop** — 피드백 이력 기반 개인화 정확도 향상
@@ -42,3 +42,41 @@
 ## Getting Started
 
 ```bash
+# 환경변수 설정
+export ANTHROPIC_API_KEY=your_api_key
+export SLACK_WEBHOOK_URL=your_webhook_url
+
+# 실행
+./gradlew bootRun
+```
+
+## API
+
+| Method | URL | 설명 |
+|---|---|---|
+| GET | /api/profile | 프로필 조회 |
+| PUT | /api/profile | 프로필 수정 |
+| POST | /api/crawl | 공고 수집 실행 |
+| POST | /api/analyze | AI 분석 실행 |
+| GET | /api/results | 분석 결과 조회 |
+| POST | /api/feedback/{id} | 피드백 저장 |
+| POST | /api/digest/test | Slack 전송 테스트 |
+
+## Roadmap
+
+| Phase | 목표 | 상태 |
+|---|---|---|
+| 1 | UserProfile 엔티티 + Claude API 연동 PoC | ✅ 완료 |
+| 2 | Wanted 크롤링 + 매칭 엔진 MVP | ✅ 완료 |
+| 3 | PostgreSQL 저장 + Slack 전송 + 자동 스케줄링 | ✅ 완료 |
+| 4 | 피드백 루프 + 패키지 구조 정리 | ✅ 완료 |
+| 5 | 매칭 정확도 개선 + 자소서 키워드 고도화 | ✅ 완료 |
+| 6 | 문서화 + 스크린샷 + 회고 블로그 | ✅ 완료 |
+
+## Screenshots
+
+### 분석 결과 화면
+![분석 결과](docs/screenshots/results.png)
+
+### Slack 일일 리포트
+![Slack 리포트](docs/screenshots/slack.png)

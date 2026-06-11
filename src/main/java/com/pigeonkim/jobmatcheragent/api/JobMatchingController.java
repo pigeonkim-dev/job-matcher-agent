@@ -18,7 +18,6 @@ public class JobMatchingController {
     private final MatchResultRepository matchResultRepository;
     private final WantedCrawler wantedCrawler;
     private final MatchingEngine matchingEngine;
-    @Autowired
     private DailyDigestService dailyDigestService;
 
     public JobMatchingController(
