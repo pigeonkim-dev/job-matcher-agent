@@ -23,6 +23,6 @@ public class FeedbackService {
     }
 
     public List<FeedbackLog> getFeedbackByType(FeedbackType feedbackType) {
-        return feedbackLogRepository.findByFeedbackType(feedbackType);
+        return feedbackLogRepository.findByFeedbackTypeWithMatchResult(FeedbackType.NOT_INTERESTED);
     }
 }

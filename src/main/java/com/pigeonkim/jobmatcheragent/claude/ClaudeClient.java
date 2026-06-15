@@ -45,8 +45,16 @@ public class ClaudeClient {
                 .bodyToMono(Map.class)
                 .block();
 
-        // response.content[0].text 에 Claude 답변이 들어있음
+        if (response == null) {
+            throw new RuntimeException("Claude API 응답이 null입니다.");
+        }
+
         List<Map<String, Object>> content = (List<Map<String, Object>>) response.get("content");
+
+        if (content == null || content.isEmpty()) {
+            throw new RuntimeException("Claude API 응답 content가 비어있습니다.");
+        }
+
         return (String) content.get(0).get("text");
     }
 }

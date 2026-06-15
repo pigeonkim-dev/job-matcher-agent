@@ -3,6 +3,7 @@ package com.pigeonkim.jobmatcheragent.matching;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pigeonkim.jobmatcheragent.claude.ClaudeClient;
 import com.pigeonkim.jobmatcheragent.domain.*;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.type.TypeReference;
 
@@ -49,11 +50,11 @@ public class MatchingEngine {
         result.setJobPostingId(jobPosting.getId());
         result.setMatchedKeywords((String) parsed.get("matchedKeywords"));
         result.setRequirementAnalysis((String) parsed.get("requirementAnalysis"));
-        result.setScore((Integer) parsed.get("score"));
         result.setSummary((String) parsed.get("summary"));
-        result.setTechScore((Integer) parsed.get("techScore"));
-        result.setExperienceScore((Integer) parsed.get("experienceScore"));
-        result.setPreferenceScore((Integer) parsed.get("preferenceScore"));
+        result.setScore(((Number) parsed.get("score")).intValue());
+        result.setTechScore(((Number) parsed.get("techScore")).intValue());
+        result.setExperienceScore(((Number) parsed.get("experienceScore")).intValue());
+        result.setPreferenceScore(((Number) parsed.get("preferenceScore")).intValue());
         result.setRiskFactors((String) parsed.get("riskFactors"));
         result.setCoverLetterKeywords((String) parsed.get("coverLetterKeywords"));
 
@@ -61,8 +62,8 @@ public class MatchingEngine {
     }
 
     private String buildPrompt(UserProfile userProfile, JobPosting jobPosting) {
-        List<FeedbackLog> interested = feedbackLogRepository.findByFeedbackType(FeedbackType.INTERESTED);
-        List<FeedbackLog> notInterested = feedbackLogRepository.findByFeedbackType(FeedbackType.NOT_INTERESTED);
+        List<FeedbackLog> interested = feedbackLogRepository.findByFeedbackTypeWithMatchResult(FeedbackType.INTERESTED);
+        List<FeedbackLog> notInterested = feedbackLogRepository.findByFeedbackTypeWithMatchResult(FeedbackType.NOT_INTERESTED);
 
         // 공고 ID 대신 matchedKeywords 추출
         String interestedKeywords = interested.stream()
@@ -140,6 +141,7 @@ public class MatchingEngine {
         return prev;
     }
 
+    @Transactional
     private MatchResult analyzeWithReason(UserProfile userProfile, JobPosting jobPosting, String reason) throws Exception {
         // 기존 결과 삭제 후 새로 분석
         matchResultRepository.findFirstByJobPostingIdOrderByCreatedAtDesc(jobPosting.getId())

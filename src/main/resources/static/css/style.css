@@ -215,3 +215,27 @@ tr:hover td { background: #fafafa; }
 .reason-badge { font-size: 0.8rem; color: #e94560; margin: 6px 0; }
 .job-link { font-size: 0.85rem; color: #1a1a2e; text-decoration: none; }
 .job-link:hover { text-decoration: underline; }
+
+.feedback-buttons {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+.btn-interested {
+    background: #27ae60; color: white;
+    border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+}
+
+.btn-not-interested {
+    background: #e74c3c; color: white;
+    border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+}
+
+.btn-applied {
+    background: #2980b9; color: white;
+    border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+}

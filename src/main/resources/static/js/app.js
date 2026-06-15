@@ -100,6 +100,11 @@ async function loadResults() {
             ${r.coverLetterKeywords ? `<div class="result-cover">✏️ 자소서 키워드: ${r.coverLetterKeywords}</div>` : ''}
 
             <div class="result-summary">📋 ${r.summary || '-'}</div>
+            <div class="feedback-buttons">
+                <button onclick="saveFeedback(${r.id}, 'INTERESTED')" class="btn-interested">👍 관심있음</button>
+                <button onclick="saveFeedback(${r.id}, 'NOT_INTERESTED')" class="btn-not-interested">👎 관심없음</button>
+                <button onclick="saveFeedback(${r.id}, 'APPLIED')" class="btn-applied">✉️ 지원함</button>
+            </div>
             <a href="${r.jobUrl}" target="_blank" class="job-link">공고 보기 →</a>
         </div>
     `).join('');
@@ -108,6 +113,13 @@ async function loadResults() {
 // 상태 메시지
 function setStatus(msg) {
     document.getElementById('action-status').textContent = msg;
+}
+
+async function saveFeedback(matchResultId, feedbackType) {
+    const res = await fetch(`/api/feedback/${matchResultId}?feedbackType=${feedbackType}`, { method: 'POST' });
+    if (res.ok) {
+        alert(`피드백 저장 완료: ${feedbackType}`);
+    }
 }
 
 // 초기 로드
