@@ -37,3 +37,6 @@ out/
 .vscode/
 application-dev.yml
 application-prod.yml
+
+### Claude Code ###
+.claude/
