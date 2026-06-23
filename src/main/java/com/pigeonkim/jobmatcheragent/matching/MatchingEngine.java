@@ -1,40 +1,42 @@
 package com.pigeonkim.jobmatcheragent.matching;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pigeonkim.jobmatcheragent.claude.ClaudeClient;
-import com.pigeonkim.jobmatcheragent.domain.*;
-import jakarta.transaction.Transactional;
+import com.pigeonkim.jobmatcheragent.domain.JobPosting;
+import com.pigeonkim.jobmatcheragent.domain.MatchResult;
+import com.pigeonkim.jobmatcheragent.domain.UserProfile;
 import org.springframework.stereotype.Service;
-import com.fasterxml.jackson.core.type.TypeReference;
 
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
-import com.pigeonkim.jobmatcheragent.domain.FeedbackLog;
-import com.pigeonkim.jobmatcheragent.domain.FeedbackLogRepository;
-import com.pigeonkim.jobmatcheragent.domain.FeedbackType;
-
+/**
+ * Claude API 매칭 분석 — Claude 호출 + 응답 매핑만 담당하는 순수 컴포넌트.
+ *
+ * <p>영속화/트랜잭션/피드백 조회/스마트 재분석은 {@link MatchAnalysisService}가 책임진다.
+ * 여기서 반환하는 {@link MatchResult}는 <b>저장되지 않은</b> 상태다.
+ *
+ * <p>참고: 응답 JSON 파싱은 아직 정규식 strip + Map 캐스팅이다(Phase 7b에서
+ * anthropic-java SDK structured outputs로 교체 예정 — B2).
+ */
 @Service
 public class MatchingEngine {
 
     private final ClaudeClient claudeClient;
-    private final MatchResultRepository matchResultRepository;
-    private final FeedbackLogRepository feedbackLogRepository;
 
-    public MatchingEngine(ClaudeClient claudeClient, MatchResultRepository matchResultRepository,
-                          FeedbackLogRepository feedbackLogRepository) {
+    public MatchingEngine(ClaudeClient claudeClient) {
         this.claudeClient = claudeClient;
-        this.matchResultRepository = matchResultRepository;
-        this.feedbackLogRepository = feedbackLogRepository;
     }
 
-    public MatchResult analyze(UserProfile userProfile, JobPosting jobPosting) throws Exception {
-        String prompt = buildPrompt(userProfile, jobPosting);
+    /**
+     * 프로필·공고·피드백 키워드로 매칭을 분석한다. 결과는 저장하지 않고 반환한다.
+     */
+    public MatchResult analyze(UserProfile userProfile, JobPosting jobPosting,
+                               FeedbackKeywords feedback) throws Exception {
+        String prompt = buildPrompt(userProfile, jobPosting, feedback);
         String response = claudeClient.sendMessage(prompt);
 
-        // Claude가 ```json ... ``` 으로 감쌀 때 제거
+        // Claude가 ```json ... ``` 으로 감쌀 때 제거 (7b: SDK structured output으로 대체)
         String cleanResponse = response
                 .replaceAll("```json", "")
                 .replaceAll("```", "")
@@ -58,43 +60,30 @@ public class MatchingEngine {
         result.setRiskFactors((String) parsed.get("riskFactors"));
         result.setCoverLetterKeywords((String) parsed.get("coverLetterKeywords"));
 
-        return matchResultRepository.save(result);
+        return result;
     }
 
-    private String buildPrompt(UserProfile userProfile, JobPosting jobPosting) {
-        List<FeedbackLog> interested = feedbackLogRepository.findByFeedbackTypeWithMatchResult(FeedbackType.INTERESTED);
-        List<FeedbackLog> notInterested = feedbackLogRepository.findByFeedbackTypeWithMatchResult(FeedbackType.NOT_INTERESTED);
-
-        // 공고 ID 대신 matchedKeywords 추출
-        String interestedKeywords = interested.stream()
-                .map(f -> f.getMatchResult().getMatchedKeywords())
-                .filter(k -> k != null && !k.isBlank())
-                .collect(Collectors.joining(", "));
-
-        String notInterestedKeywords = notInterested.stream()
-                .map(f -> f.getMatchResult().getMatchedKeywords())
-                .filter(k -> k != null && !k.isBlank())
-                .collect(Collectors.joining(", "));
-
+    private String buildPrompt(UserProfile userProfile, JobPosting jobPosting,
+                               FeedbackKeywords feedback) {
         return String.format("""
                 아래 개발자 프로필과 채용 공고를 분석하고 반드시 JSON 형식으로만 답하세요.
                 다른 설명 없이 JSON만 출력하세요.
-                
+
                 [개발자 프로필]
                 경력 및 소개: %s
                 선호 카테고리: %s
                 기피 키워드: %s
-                
+
                 [사용자 피드백 이력]
                 관심있음 공고의 공통 키워드: %s
                 관심없음 공고의 공통 키워드: %s
                 (위 키워드 패턴을 참고해서 사용자 성향을 반영한 점수를 매겨주세요)
-                
+
                 [채용 공고]
                 제목: %s
                 회사: %s
                 내용: %s
-                
+
                 아래 JSON 형식으로만 답하세요:
                 {
                   "matchedKeywords": "일치하는 키워드들 (쉼표로 구분)",
@@ -111,44 +100,11 @@ public class MatchingEngine {
                 userProfile.getResumeContent(),
                 userProfile.getPreferredCategories(),
                 userProfile.getAvoidKeywords(),
-                interestedKeywords.isEmpty() ? "없음" : interestedKeywords,
-                notInterestedKeywords.isEmpty() ? "없음" : notInterestedKeywords,
+                feedback.interested(),
+                feedback.notInterested(),
                 jobPosting.getTitle(),
                 jobPosting.getCompany(),
                 jobPosting.getDescription()
         );
-    }
-
-    public MatchResult analyzeIfNeeded(UserProfile userProfile, JobPosting jobPosting) throws Exception {
-
-        Optional<MatchResult> existing = matchResultRepository
-                .findFirstByJobPostingIdOrderByCreatedAtDesc(jobPosting.getId());
-
-        // ① 기존 분석 없음 → 신규 공고
-        if (existing.isEmpty()) {
-            return analyzeWithReason(userProfile, jobPosting, "신규 공고");
-        }
-
-        MatchResult prev = existing.get();
-
-        // ② 프로필이 마지막 분석 이후 수정됨
-        if (userProfile.getUpdatedAt() != null &&
-                userProfile.getUpdatedAt().isAfter(prev.getCreatedAt())) {
-            return analyzeWithReason(userProfile, jobPosting, "프로필 변경");
-        }
-
-        // ③ 변경 없음 → 건너뜀
-        return prev;
-    }
-
-    @Transactional
-    private MatchResult analyzeWithReason(UserProfile userProfile, JobPosting jobPosting, String reason) throws Exception {
-        // 기존 결과 삭제 후 새로 분석
-        matchResultRepository.findFirstByJobPostingIdOrderByCreatedAtDesc(jobPosting.getId())
-                .ifPresent(matchResultRepository::delete);
-
-        MatchResult result = analyze(userProfile, jobPosting);
-        result.setAnalysisReason(reason);
-        return matchResultRepository.save(result);
     }
 }

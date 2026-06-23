@@ -1,15 +1,24 @@
 package com.pigeonkim.jobmatcheragent.claude;
 
+import io.netty.channel.ChannelOption;
+import io.netty.handler.timeout.ReadTimeoutHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class ClaudeClient {
+
+    // 외부 API라 timeout 필수 — 한 번의 hang이 분석 배치 전체를 멈추지 않도록. (eng-review B4)
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(60);
 
     private final WebClient webClient;
     private final String model;
@@ -19,7 +28,15 @@ public class ClaudeClient {
             @Value("${anthropic.base-url}") String baseUrl,
             @Value("${anthropic.model}") String model) {
         this.model = model;
+
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) CONNECT_TIMEOUT.toMillis())
+                .responseTimeout(RESPONSE_TIMEOUT)
+                .doOnConnected(conn -> conn.addHandlerLast(
+                        new ReadTimeoutHandler((int) RESPONSE_TIMEOUT.getSeconds())));
+
         this.webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .baseUrl(baseUrl)
                 .defaultHeader("x-api-key", apiKey)
                 .defaultHeader("anthropic-version", "2023-06-01")

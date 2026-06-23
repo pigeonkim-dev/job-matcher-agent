@@ -31,9 +31,10 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+	// webflux: WebClient(Claude/Wanted/Slack 호출)에 필요 — 제거하면 안 됨
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	implementation 'org.jsoup:jsoup:1.17.2'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
+	// 'spring-boot-starter-web' 제거: 'spring-boot-starter-webmvc'(위)와 MVC 중복 (eng-review)
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 
 }

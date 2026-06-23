@@ -2,7 +2,9 @@ package com.pigeonkim.jobmatcheragent.api;
 
 import com.pigeonkim.jobmatcheragent.crawler.WantedCrawler;
 import com.pigeonkim.jobmatcheragent.domain.*;
-import com.pigeonkim.jobmatcheragent.matching.MatchingEngine;
+import com.pigeonkim.jobmatcheragent.matching.AnalysisOutcome;
+import com.pigeonkim.jobmatcheragent.matching.FeedbackKeywords;
+import com.pigeonkim.jobmatcheragent.matching.MatchAnalysisService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,19 +17,19 @@ public class JobMatchingController {
     private final JobPostingRepository jobPostingRepository;
     private final MatchResultRepository matchResultRepository;
     private final WantedCrawler wantedCrawler;
-    private final MatchingEngine matchingEngine;
+    private final MatchAnalysisService matchAnalysisService;
 
     public JobMatchingController(
             UserProfileRepository userProfileRepository,
             JobPostingRepository jobPostingRepository,
             MatchResultRepository matchResultRepository,
             WantedCrawler wantedCrawler,
-            MatchingEngine matchingEngine) {
+            MatchAnalysisService matchAnalysisService) {
         this.userProfileRepository = userProfileRepository;
         this.jobPostingRepository = jobPostingRepository;
         this.matchResultRepository = matchResultRepository;
         this.wantedCrawler = wantedCrawler;
-        this.matchingEngine = matchingEngine;
+        this.matchAnalysisService = matchAnalysisService;
     }
 
     // 프로필 조회
@@ -61,10 +63,13 @@ public class JobMatchingController {
         UserProfile profile = userProfileRepository.findById(1L).orElseThrow();
         List<JobPosting> postings = jobPostingRepository.findAll();
 
+        // 피드백 키워드는 루프 전 1회만 조회 (eng-review P1: 공고마다 조회하면 2N 쿼리)
+        FeedbackKeywords feedback = matchAnalysisService.loadFeedbackKeywords();
+
         int analyzed = 0, skipped = 0;
         for (JobPosting posting : postings) {
-            MatchResult result = matchingEngine.analyzeIfNeeded(profile, posting);
-            if (result.getAnalysisReason() != null) analyzed++;
+            AnalysisOutcome outcome = matchAnalysisService.analyzeIfNeeded(profile, posting, feedback);
+            if (outcome.reanalyzed()) analyzed++;
             else skipped++;
         }
 

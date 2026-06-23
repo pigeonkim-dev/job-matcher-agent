@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -33,9 +34,12 @@ public class DailyDigestService {
     private final String webhookUrl;
 
     public void send() {
+        // score 내림차순. null은 이미 필터로 제외하지만, 정렬 자체도 null-safe하게
+        // 명시(Comparator.nullsLast)해 의도를 드러낸다. (eng-review: B3 방어적 강화)
         List<MatchResult> top5 = matchResultRepository.findAll().stream()
                 .filter(r -> r.getScore() != null)
-                .sorted((a, b) -> b.getScore() - a.getScore())
+                .sorted(Comparator.comparing(MatchResult::getScore,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(5)
                 .toList();
 
