@@ -92,7 +92,17 @@ public class JobMatchingController {
         List<String> keywords = List.of("Spring Boot", "Java 백엔드", "서버 개발자 Java");
         int count = 0, failed = 0;
         for (String keyword : keywords) {
-            for (String url : wantedCrawler.searchJobUrls(keyword)) {
+            // 한 키워드 검색이 실패해도 다른 키워드 크롤링은 계속한다 (eng-review #5)
+            List<String> urls;
+            try {
+                urls = wantedCrawler.searchJobUrls(keyword);
+            } catch (Exception e) {
+                failed++;
+                log.warn("공고 검색 실패 (keyword={}): {}", keyword, e.getMessage());
+                continue;
+            }
+
+            for (String url : urls) {
                 // 공고 1건 수집 실패가 전체 크롤링을 멈추지 않도록 격리한다 (Phase 8)
                 try {
                     wantedCrawler.parseJobPosting(url);

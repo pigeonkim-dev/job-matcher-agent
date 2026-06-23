@@ -81,4 +81,33 @@ class JobMatchingControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("분석: 1건 / 건너뜀: 0건 / 실패: 1건"));
     }
+
+    @Test
+    void crawl_isolates_failures_and_continues() throws Exception {
+        // 첫 키워드만 url 2개 반환, 나머지는 빈 목록
+        when(wantedCrawler.searchJobUrls("Spring Boot")).thenReturn(List.of("ok", "bad"));
+        when(wantedCrawler.searchJobUrls("Java 백엔드")).thenReturn(List.of());
+        when(wantedCrawler.searchJobUrls("서버 개발자 Java")).thenReturn(List.of());
+        when(wantedCrawler.parseJobPosting("ok")).thenReturn(new JobPosting());
+        when(wantedCrawler.parseJobPosting("bad")).thenThrow(new RuntimeException("크롤링 실패"));
+
+        mvc.perform(post("/api/crawl"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("1건 수집 완료 / 실패: 1건"));
+    }
+
+    @Test
+    void crawl_isolates_search_failure_per_keyword() throws Exception {
+        // 첫 키워드 검색이 실패해도 나머지 키워드는 계속 진행돼야 함 (eng-review #5)
+        when(wantedCrawler.searchJobUrls("Spring Boot"))
+                .thenThrow(new RuntimeException("검색 API 장애"));
+        when(wantedCrawler.searchJobUrls("Java 백엔드")).thenReturn(List.of("ok"));
+        when(wantedCrawler.searchJobUrls("서버 개발자 Java")).thenReturn(List.of());
+        when(wantedCrawler.parseJobPosting("ok")).thenReturn(new JobPosting());
+
+        // 검색 1건 실패(failed=1) + 수집 1건 성공 → 500 안 나고 정상 응답
+        mvc.perform(post("/api/crawl"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("1건 수집 완료 / 실패: 1건"));
+    }
 }
