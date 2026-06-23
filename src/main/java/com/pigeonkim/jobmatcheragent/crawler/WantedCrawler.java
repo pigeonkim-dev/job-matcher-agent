@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pigeonkim.jobmatcheragent.domain.JobPosting;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -24,7 +25,8 @@ public class WantedCrawler implements JobSiteCrawler {
     private final WebClient webClient;
     private final JobCrawlerService jobCrawlerService;
 
-    public WantedCrawler(JobCrawlerService jobCrawlerService) {
+    public WantedCrawler(JobCrawlerService jobCrawlerService,
+                         @Value("${wanted.base-url:https://www.wanted.co.kr}") String baseUrl) {
         this.jobCrawlerService = jobCrawlerService;
 
         HttpClient httpClient = HttpClient.create()
@@ -35,7 +37,7 @@ public class WantedCrawler implements JobSiteCrawler {
 
         this.webClient = WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .baseUrl("https://www.wanted.co.kr")
+                .baseUrl(baseUrl)
                 .defaultHeader("User-Agent", "Mozilla/5.0")
                 .build();
     }

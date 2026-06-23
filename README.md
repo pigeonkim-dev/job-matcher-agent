@@ -43,7 +43,7 @@
 
 ```bash
 # 환경변수 설정
-export ANTHROPIC_API_KEY=your_api_key
+export MY_ANTHROPIC_API_KEY=your_api_key
 export SLACK_WEBHOOK_URL=your_webhook_url
 
 # 실행

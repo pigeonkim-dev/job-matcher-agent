@@ -59,7 +59,7 @@ public class JobMatchingController {
 
     // 분석 실행 — 스마트 재분석
     @PostMapping("/analyze")
-    public String analyze() throws Exception {
+    public String analyze() {
         UserProfile profile = userProfileRepository.findById(1L).orElseThrow();
         List<JobPosting> postings = jobPostingRepository.findAll();
 

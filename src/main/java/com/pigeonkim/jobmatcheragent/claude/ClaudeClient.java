@@ -1,77 +1,56 @@
 package com.pigeonkim.jobmatcheragent.claude;
 
-import io.netty.channel.ChannelOption;
-import io.netty.handler.timeout.ReadTimeoutHandler;
+import com.anthropic.client.AnthropicClient;
+import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.models.messages.MessageCreateParams;
+import com.anthropic.models.messages.StructuredMessageCreateParams;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.netty.http.client.HttpClient;
 
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-
+/**
+ * 공식 Anthropic Java SDK 래퍼.
+ *
+ * <p>structured outputs(`outputConfig(type)`)로 응답을 지정한 record 타입으로
+ * 강제·검증한다. 이전의 수제 WebClient + 정규식 strip + Map 캐스팅(B2)을 제거했다.
+ * timeout/재시도(429·5xx)는 SDK가 기본 처리한다.
+ */
 @Service
 public class ClaudeClient {
 
-    // 외부 API라 timeout 필수 — 한 번의 hang이 분석 배치 전체를 멈추지 않도록. (eng-review B4)
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(60);
+    private static final long MAX_TOKENS = 1024L;
 
-    private final WebClient webClient;
+    private final AnthropicClient client;
     private final String model;
 
     public ClaudeClient(
             @Value("${anthropic.api-key}") String apiKey,
-            @Value("${anthropic.base-url}") String baseUrl,
             @Value("${anthropic.model}") String model) {
         this.model = model;
-
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) CONNECT_TIMEOUT.toMillis())
-                .responseTimeout(RESPONSE_TIMEOUT)
-                .doOnConnected(conn -> conn.addHandlerLast(
-                        new ReadTimeoutHandler((int) RESPONSE_TIMEOUT.getSeconds())));
-
-        this.webClient = WebClient.builder()
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .baseUrl(baseUrl)
-                .defaultHeader("x-api-key", apiKey)
-                .defaultHeader("anthropic-version", "2023-06-01")
-                .defaultHeader("content-type", "application/json")
+        // env(fromEnv) 대신 설정값으로 명시 생성 — env 미설정 시 런타임 폭발 방지 (eng-review)
+        this.client = AnthropicOkHttpClient.builder()
+                .apiKey(apiKey)
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
-    public String sendMessage(String userMessage) {
-        Map<String, Object> request = Map.of(
-                "model", model,
-                "max_tokens", 1024,
-                "messages", List.of(
-                        Map.of("role", "user", "content", userMessage)
-                )
-        );
+    /**
+     * 프롬프트를 보내고 응답을 {@code type} 스키마로 강제해 받는다.
+     *
+     * @param type structured output 스키마가 될 record 클래스
+     * @return 검증·파싱된 타입 인스턴스
+     */
+    public <T> T sendStructured(String prompt, Class<T> type) {
+        StructuredMessageCreateParams<T> params = MessageCreateParams.builder()
+                .model(model)
+                .maxTokens(MAX_TOKENS)
+                .outputConfig(type)
+                .addUserMessage(prompt)
+                .build();
 
-        Map<String, Object> response = webClient.post()
-                .uri("/v1/messages")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
-
-        if (response == null) {
-            throw new RuntimeException("Claude API 응답이 null입니다.");
-        }
-
-        List<Map<String, Object>> content = (List<Map<String, Object>>) response.get("content");
-
-        if (content == null || content.isEmpty()) {
-            throw new RuntimeException("Claude API 응답 content가 비어있습니다.");
-        }
-
-        return (String) content.get(0).get("text");
+        return client.messages().create(params).content().stream()
+                .flatMap(block -> block.text().stream())
+                .map(typed -> typed.text())
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Claude 응답에 구조화된 출력이 없습니다."));
     }
 }

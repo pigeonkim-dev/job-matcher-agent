@@ -1,23 +1,19 @@
 package com.pigeonkim.jobmatcheragent.matching;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pigeonkim.jobmatcheragent.claude.ClaudeClient;
 import com.pigeonkim.jobmatcheragent.domain.JobPosting;
 import com.pigeonkim.jobmatcheragent.domain.MatchResult;
 import com.pigeonkim.jobmatcheragent.domain.UserProfile;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
-
 /**
- * Claude API 매칭 분석 — Claude 호출 + 응답 매핑만 담당하는 순수 컴포넌트.
+ * Claude API 매칭 분석 — Claude 호출 + 결과 매핑만 담당하는 순수 컴포넌트.
  *
  * <p>영속화/트랜잭션/피드백 조회/스마트 재분석은 {@link MatchAnalysisService}가 책임진다.
  * 여기서 반환하는 {@link MatchResult}는 <b>저장되지 않은</b> 상태다.
  *
- * <p>참고: 응답 JSON 파싱은 아직 정규식 strip + Map 캐스팅이다(Phase 7b에서
- * anthropic-java SDK structured outputs로 교체 예정 — B2).
+ * <p>응답은 SDK structured outputs로 {@link MatchAnalysis} 타입으로 강제 파싱된다
+ * (정규식 strip + Map 캐스팅 제거 — Phase 7b B2).
  */
 @Service
 public class MatchingEngine {
@@ -28,46 +24,31 @@ public class MatchingEngine {
         this.claudeClient = claudeClient;
     }
 
-    /**
-     * 프로필·공고·피드백 키워드로 매칭을 분석한다. 결과는 저장하지 않고 반환한다.
-     */
+    /** 프로필·공고·피드백 키워드로 매칭을 분석한다. 결과는 저장하지 않고 반환한다. */
     public MatchResult analyze(UserProfile userProfile, JobPosting jobPosting,
-                               FeedbackKeywords feedback) throws Exception {
+                               FeedbackKeywords feedback) {
         String prompt = buildPrompt(userProfile, jobPosting, feedback);
-        String response = claudeClient.sendMessage(prompt);
-
-        // Claude가 ```json ... ``` 으로 감쌀 때 제거 (7b: SDK structured output으로 대체)
-        String cleanResponse = response
-                .replaceAll("```json", "")
-                .replaceAll("```", "")
-                .trim();
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        Map<String, Object> parsed = objectMapper.readValue(cleanResponse,
-                new TypeReference<Map<String, Object>>() {
-                });
+        MatchAnalysis analysis = claudeClient.sendStructured(prompt, MatchAnalysis.class);
 
         MatchResult result = new MatchResult();
         result.setUserProfileId(userProfile.getId());
         result.setJobPostingId(jobPosting.getId());
-        result.setMatchedKeywords((String) parsed.get("matchedKeywords"));
-        result.setRequirementAnalysis((String) parsed.get("requirementAnalysis"));
-        result.setSummary((String) parsed.get("summary"));
-        result.setScore(((Number) parsed.get("score")).intValue());
-        result.setTechScore(((Number) parsed.get("techScore")).intValue());
-        result.setExperienceScore(((Number) parsed.get("experienceScore")).intValue());
-        result.setPreferenceScore(((Number) parsed.get("preferenceScore")).intValue());
-        result.setRiskFactors((String) parsed.get("riskFactors"));
-        result.setCoverLetterKeywords((String) parsed.get("coverLetterKeywords"));
-
+        result.setMatchedKeywords(analysis.matchedKeywords());
+        result.setRequirementAnalysis(analysis.requirementAnalysis());
+        result.setSummary(analysis.summary());
+        result.setScore(analysis.score());
+        result.setTechScore(analysis.techScore());
+        result.setExperienceScore(analysis.experienceScore());
+        result.setPreferenceScore(analysis.preferenceScore());
+        result.setRiskFactors(analysis.riskFactors());
+        result.setCoverLetterKeywords(analysis.coverLetterKeywords());
         return result;
     }
 
     private String buildPrompt(UserProfile userProfile, JobPosting jobPosting,
                                FeedbackKeywords feedback) {
         return String.format("""
-                아래 개발자 프로필과 채용 공고를 분석하고 반드시 JSON 형식으로만 답하세요.
-                다른 설명 없이 JSON만 출력하세요.
+                아래 개발자 프로필과 채용 공고를 분석하세요.
 
                 [개발자 프로필]
                 경력 및 소개: %s
@@ -83,19 +64,6 @@ public class MatchingEngine {
                 제목: %s
                 회사: %s
                 내용: %s
-
-                아래 JSON 형식으로만 답하세요:
-                {
-                  "matchedKeywords": "일치하는 키워드들 (쉼표로 구분)",
-                  "requirementAnalysis": "자격요건 충족 여부 분석 (2-3문장)",
-                  "techScore": 80,
-                  "experienceScore": 70,
-                  "preferenceScore": 90,
-                  "score": 80,
-                  "riskFactors": "우려사항 (1-2문장)",
-                  "coverLetterKeywords": "자소서에 강조할 키워드들 (쉼표로 구분)",
-                  "summary": "종합 요약 및 지원 여부 추천"
-                }
                 """,
                 userProfile.getResumeContent(),
                 userProfile.getPreferredCategories(),

@@ -66,7 +66,7 @@ public class MatchAnalysisService {
      */
     @Transactional
     public AnalysisOutcome analyzeIfNeeded(UserProfile profile, JobPosting posting,
-                                           FeedbackKeywords feedback) throws Exception {
+                                           FeedbackKeywords feedback) {
         Optional<MatchResult> existing = matchResultRepository
                 .findFirstByJobPostingIdOrderByCreatedAtDesc(posting.getId());
 

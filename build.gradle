@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.0.6'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'jacoco'
 }
 
 group = 'com.pigeonkim'
@@ -36,9 +37,28 @@ dependencies {
 	implementation 'org.jsoup:jsoup:1.17.2'
 	// 'spring-boot-starter-web' 제거: 'spring-boot-starter-webmvc'(위)와 MVC 중복 (eng-review)
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
+	// 공식 Anthropic Java SDK — structured outputs로 JSON 파싱 수제 코드 제거 (Phase 7b B2)
+	implementation 'com.anthropic:anthropic-java:2.34.0'
 
+	// --- 테스트 (Phase 7b) ---
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	// Spring Boot 4 → Testcontainers 2.0: 모듈명이 testcontainers- 접두사로 변경됨 (eng-review)
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testImplementation 'org.wiremock:wiremock-standalone:3.13.0'
+	testRuntimeOnly 'com.h2database:h2'  // 단위/웹/스모크 테스트용 인메모리 DB
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+		html.required = true
+	}
 }
