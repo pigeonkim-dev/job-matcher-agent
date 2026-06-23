@@ -39,6 +39,9 @@ dependencies {
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 	// 공식 Anthropic Java SDK — structured outputs로 JSON 파싱 수제 코드 제거 (Phase 7b B2)
 	implementation 'com.anthropic:anthropic-java:2.34.0'
+	// 회복탄력성 (Phase 8) — Resilience4j core retry. spring-boot4 스타터는 아직 없어서
+	// core 모듈을 프로그래밍 방식으로 사용(버전 무관, Boot4에서 동작)
+	implementation 'io.github.resilience4j:resilience4j-retry:2.3.0'
 
 	// --- 테스트 (Phase 7b) ---
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

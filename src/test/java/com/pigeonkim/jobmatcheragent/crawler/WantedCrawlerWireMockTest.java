@@ -1,6 +1,7 @@
 package com.pigeonkim.jobmatcheragent.crawler;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import io.github.resilience4j.retry.Retry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,8 @@ class WantedCrawlerWireMockTest {
 
     private WantedCrawler crawlerPointingAt(String baseUrl) {
         // searchJobUrls는 jobCrawlerService를 쓰지 않으므로 mock으로 충분
-        return new WantedCrawler(Mockito.mock(JobCrawlerService.class), baseUrl);
+        return new WantedCrawler(Mockito.mock(JobCrawlerService.class), baseUrl,
+                Retry.ofDefaults("test"));
     }
 
     @Test

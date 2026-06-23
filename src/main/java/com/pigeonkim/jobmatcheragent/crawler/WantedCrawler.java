@@ -2,6 +2,7 @@ package com.pigeonkim.jobmatcheragent.crawler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pigeonkim.jobmatcheragent.domain.JobPosting;
+import io.github.resilience4j.retry.Retry;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,10 +25,13 @@ public class WantedCrawler implements JobSiteCrawler {
 
     private final WebClient webClient;
     private final JobCrawlerService jobCrawlerService;
+    private final Retry retry;
 
     public WantedCrawler(JobCrawlerService jobCrawlerService,
-                         @Value("${wanted.base-url:https://www.wanted.co.kr}") String baseUrl) {
+                         @Value("${wanted.base-url:https://www.wanted.co.kr}") String baseUrl,
+                         Retry externalApiRetry) {
         this.jobCrawlerService = jobCrawlerService;
+        this.retry = externalApiRetry;
 
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) CONNECT_TIMEOUT.toMillis())
@@ -47,7 +51,8 @@ public class WantedCrawler implements JobSiteCrawler {
     public List<String> searchJobUrls(String keyword) {
         List<String> urls = new ArrayList<>();
 
-        Map<String, Object> response = webClient.get()
+        // 일시적 오류 대비 재시도로 감싼다 (Phase 8)
+        Map<String, Object> response = retry.executeSupplier(() -> webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/chaos/search/v1/position")
                         .queryParam("query", keyword)
@@ -59,7 +64,7 @@ public class WantedCrawler implements JobSiteCrawler {
                         .build())
                 .retrieve()
                 .bodyToMono(Map.class)
-                .block();
+                .block());
 
         // response 자체가 null일 수 있음
         if (response == null) return urls;

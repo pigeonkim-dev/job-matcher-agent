@@ -58,6 +58,27 @@ class JobMatchingControllerTest {
 
         mvc.perform(post("/api/analyze"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("분석: 2건 / 건너뜀: 1건"));
+                .andExpect(content().string("분석: 2건 / 건너뜀: 1건 / 실패: 0건"));
+    }
+
+    @Test
+    void analyze_isolates_failures_and_continues() throws Exception {
+        when(userProfileRepository.findById(1L)).thenReturn(java.util.Optional.of(new UserProfile()));
+        JobPosting p1 = new JobPosting(); p1.setId(1L);
+        JobPosting p2 = new JobPosting(); p2.setId(2L);
+        when(jobPostingRepository.findAll()).thenReturn(List.of(p1, p2));
+        when(matchAnalysisService.loadFeedbackKeywords())
+                .thenReturn(new FeedbackKeywords("없음", "없음"));
+
+        MatchResult ok = new MatchResult(); ok.setAnalysisReason("신규 공고");
+        // p1은 분석 실패(예외), p2는 성공 — 한 건 실패해도 배치는 계속돼야 함
+        when(matchAnalysisService.analyzeIfNeeded(any(), eq(p1), any()))
+                .thenThrow(new RuntimeException("Claude 호출 실패"));
+        when(matchAnalysisService.analyzeIfNeeded(any(), eq(p2), any()))
+                .thenReturn(new AnalysisOutcome(ok, true));
+
+        mvc.perform(post("/api/analyze"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("분석: 1건 / 건너뜀: 0건 / 실패: 1건"));
     }
 }
