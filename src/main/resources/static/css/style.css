@@ -239,3 +239,13 @@ tr:hover td { background: #fafafa; }
     border: none; padding: 6px 14px;
     border-radius: 4px; cursor: pointer; font-size: 0.85rem;
 }
+
+/* 선택된 피드백은 테두리로 강조하고, 나머지는 흐리게 (선택 상태 한눈에) */
+.feedback-buttons .selected {
+    outline: 3px solid #2c3e50;
+    outline-offset: 1px;
+    font-weight: 700;
+}
+.feedback-buttons:has(.selected) button:not(.selected) {
+    opacity: 0.5;
+}

@@ -18,9 +18,11 @@ public class MatchResultDto {
     public String jobTitle;
     public String company;
     public String jobUrl;
+    public String feedbackType;  // 현재 선택된 피드백(INTERESTED/NOT_INTERESTED/APPLIED), 없으면 null
 
-    public static MatchResultDto from(MatchResult r, JobPosting p) {
+    public static MatchResultDto from(MatchResult r, JobPosting p, String feedbackType) {
         MatchResultDto dto = new MatchResultDto();
+        dto.feedbackType = feedbackType;
         dto.id = r.getId();
         dto.score = r.getScore();
         dto.techScore = r.getTechScore();

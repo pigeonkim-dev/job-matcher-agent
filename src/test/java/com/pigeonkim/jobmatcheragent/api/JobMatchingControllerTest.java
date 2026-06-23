@@ -35,6 +35,7 @@ class JobMatchingControllerTest {
     @MockitoBean JobPostingRepository jobPostingRepository;
     @MockitoBean MatchResultRepository matchResultRepository;
     @MockitoBean WantedCrawler wantedCrawler;
+    @MockitoBean FeedbackLogRepository feedbackLogRepository;
 
     @Test
     void analyze_counts_reanalyzed_vs_skipped_correctly() throws Exception {
@@ -84,6 +85,10 @@ class JobMatchingControllerTest {
 
     @Test
     void crawl_isolates_failures_and_continues() throws Exception {
+        // 크롤 키워드는 이제 프로필에서 읽는다
+        UserProfile profile = new UserProfile();
+        profile.setSearchKeywords("Spring Boot, Java 백엔드, 서버 개발자 Java");
+        when(userProfileRepository.findById(1L)).thenReturn(java.util.Optional.of(profile));
         // 첫 키워드만 url 2개 반환, 나머지는 빈 목록
         when(wantedCrawler.searchJobUrls("Spring Boot")).thenReturn(List.of("ok", "bad"));
         when(wantedCrawler.searchJobUrls("Java 백엔드")).thenReturn(List.of());
@@ -98,6 +103,9 @@ class JobMatchingControllerTest {
 
     @Test
     void crawl_isolates_search_failure_per_keyword() throws Exception {
+        UserProfile profile = new UserProfile();
+        profile.setSearchKeywords("Spring Boot, Java 백엔드, 서버 개발자 Java");
+        when(userProfileRepository.findById(1L)).thenReturn(java.util.Optional.of(profile));
         // 첫 키워드 검색이 실패해도 나머지 키워드는 계속 진행돼야 함 (eng-review #5)
         when(wantedCrawler.searchJobUrls("Spring Boot"))
                 .thenThrow(new RuntimeException("검색 API 장애"));
@@ -109,5 +117,17 @@ class JobMatchingControllerTest {
         mvc.perform(post("/api/crawl"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("1건 수집 완료 / 실패: 1건"));
+    }
+
+    @Test
+    void crawl_returns_guidance_when_no_keywords() throws Exception {
+        UserProfile profile = new UserProfile(); // searchKeywords 없음
+        when(userProfileRepository.findById(1L)).thenReturn(java.util.Optional.of(profile));
+
+        mvc.perform(post("/api/crawl"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("검색 키워드가 없습니다")));
+        org.mockito.Mockito.verify(wantedCrawler, org.mockito.Mockito.never())
+                .searchJobUrls(org.mockito.ArgumentMatchers.any());
     }
 }

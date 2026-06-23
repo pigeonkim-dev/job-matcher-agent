@@ -52,7 +52,7 @@ public class MatchingEngine {
 
                 [개발자 프로필]
                 경력 및 소개: %s
-                선호 카테고리: %s
+                관심 키워드: %s
                 기피 키워드: %s
 
                 [사용자 피드백 이력]
@@ -66,7 +66,7 @@ public class MatchingEngine {
                 내용: %s
                 """,
                 userProfile.getResumeContent(),
-                userProfile.getPreferredCategories(),
+                userProfile.getSearchKeywords(),
                 userProfile.getAvoidKeywords(),
                 feedback.interested(),
                 feedback.notInterested(),

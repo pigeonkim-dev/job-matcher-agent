@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -22,18 +24,21 @@ public class JobMatchingController {
     private final MatchResultRepository matchResultRepository;
     private final WantedCrawler wantedCrawler;
     private final MatchAnalysisService matchAnalysisService;
+    private final FeedbackLogRepository feedbackLogRepository;
 
     public JobMatchingController(
             UserProfileRepository userProfileRepository,
             JobPostingRepository jobPostingRepository,
             MatchResultRepository matchResultRepository,
             WantedCrawler wantedCrawler,
-            MatchAnalysisService matchAnalysisService) {
+            MatchAnalysisService matchAnalysisService,
+            FeedbackLogRepository feedbackLogRepository) {
         this.userProfileRepository = userProfileRepository;
         this.jobPostingRepository = jobPostingRepository;
         this.matchResultRepository = matchResultRepository;
         this.wantedCrawler = wantedCrawler;
         this.matchAnalysisService = matchAnalysisService;
+        this.feedbackLogRepository = feedbackLogRepository;
     }
 
     // 프로필 조회
@@ -51,11 +56,19 @@ public class JobMatchingController {
 
     @GetMapping("/results")
     public List<MatchResultDto> getResults() {
+        // 피드백을 공고별 1회로 미리 모아둔다 (결과마다 개별 조회하면 N+1)
+        Map<Long, FeedbackType> feedbackByResultId = feedbackLogRepository.findAll().stream()
+                .collect(Collectors.toMap(
+                        f -> f.getMatchResult().getId(),
+                        FeedbackLog::getFeedbackType,
+                        (a, b) -> b)); // 혹시 모를 중복은 뒤엣것 우선
+
         return matchResultRepository.findAll().stream()
                 .map(r -> {
                     JobPosting p = jobPostingRepository.findById(r.getJobPostingId())
                             .orElse(new JobPosting());
-                    return MatchResultDto.from(r, p);
+                    FeedbackType fb = feedbackByResultId.get(r.getId());
+                    return MatchResultDto.from(r, p, fb != null ? fb.name() : null);
                 })
                 .sorted((a, b) -> (b.score != null ? b.score : 0) - (a.score != null ? a.score : 0))
                 .toList();
@@ -89,7 +102,13 @@ public class JobMatchingController {
     // 크롤링 실행
     @PostMapping("/crawl")
     public String crawl() {
-        List<String> keywords = List.of("Spring Boot", "Java 백엔드", "서버 개발자 Java");
+        // 검색어는 프로필의 검색 키워드에서 가져온다 (하드코딩 제거)
+        UserProfile profile = userProfileRepository.findById(1L).orElseThrow();
+        List<String> keywords = profile.getSearchKeywordList();
+        if (keywords.isEmpty()) {
+            return "검색 키워드가 없습니다. 프로필에서 검색 키워드를 먼저 설정하세요.";
+        }
+
         int count = 0, failed = 0;
         for (String keyword : keywords) {
             // 한 키워드 검색이 실패해도 다른 키워드 크롤링은 계속한다 (eng-review #5)
@@ -122,7 +141,7 @@ public class JobMatchingController {
         UserProfile profile = userProfileRepository.findById(1L)
                 .orElseThrow(() -> new RuntimeException("프로필 없음"));
         profile.setResumeContent(updated.getResumeContent());
-        profile.setPreferredCategories(updated.getPreferredCategories());
+        profile.setSearchKeywords(updated.getSearchKeywords());
         profile.setAvoidKeywords(updated.getAvoidKeywords());
         profile.setPayFloor(updated.getPayFloor());
         profile.setPayTarget(updated.getPayTarget());

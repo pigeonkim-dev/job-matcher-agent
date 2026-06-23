@@ -48,7 +48,7 @@ class AnalyzeFlowSmokeIT {
         // 프로필(IDENTITY → 첫 행 id=1, 컨트롤러가 findById(1L) 사용)
         UserProfile profile = new UserProfile();
         profile.setResumeContent("12년차 백엔드");
-        profile.setPreferredCategories("백엔드");
+        profile.setSearchKeywords("백엔드");
         profile.setAvoidKeywords("프론트");
         profiles.save(profile);
 
@@ -70,9 +70,27 @@ class AnalyzeFlowSmokeIT {
         assertThat(saved.getAnalysisReason()).isEqualTo("신규 공고");
         assertThat(saved.getJobPostingId()).isEqualTo(posting.getId());
 
-        // 결과 조회 엔드포인트
+        // 결과 조회 — 아직 피드백 없으니 feedbackType은 null
         mvc.perform(get("/api/results"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].feedbackType").doesNotExist());
+
+        // 피드백 저장 → /results가 선택 상태(feedbackType)를 돌려줘야 함 (eng-review #3: LAZY 경로 검증)
+        Long matchResultId = results.findAll().get(0).getId();
+        mvc.perform(post("/api/feedback/" + matchResultId + "?feedbackType=INTERESTED"))
                 .andExpect(status().isOk());
+        mvc.perform(get("/api/results"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].feedbackType").value("INTERESTED"));
+
+        // 같은 공고에 다시 다른 피드백 → 교체(중복 안 쌓임), 1행 유지
+        mvc.perform(post("/api/feedback/" + matchResultId + "?feedbackType=APPLIED"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/results"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$[0].feedbackType").value("APPLIED"));
 
         // 재실행 시 변경 없음 → 추가 분석/저장 없음(여전히 1행)
         mvc.perform(post("/api/analyze")).andExpect(status().isOk());
