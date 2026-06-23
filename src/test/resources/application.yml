@@ -1,0 +1,26 @@
+# 테스트 전용 설정 — 단위/웹/스모크는 H2 인메모리, 외부 키는 더미.
+# (Testcontainers 통합 테스트는 @DynamicPropertySource로 datasource를 덮어쓴다)
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
+
+anthropic:
+  api-key: test-key
+  base-url: http://localhost:0
+  model: claude-sonnet-4-6
+
+slack:
+  webhook-url: http://localhost:0/test-webhook
+
+wanted:
+  base-url: https://www.wanted.co.kr

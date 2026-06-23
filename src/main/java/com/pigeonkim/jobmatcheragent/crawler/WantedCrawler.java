@@ -2,9 +2,15 @@ package com.pigeonkim.jobmatcheragent.crawler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pigeonkim.jobmatcheragent.domain.JobPosting;
+import io.netty.channel.ChannelOption;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,13 +18,26 @@ import java.util.Map;
 @Component
 public class WantedCrawler implements JobSiteCrawler {
 
+    // 외부 API timeout — 한 키워드의 hang이 크롤링 배치 전체를 멈추지 않도록. (eng-review B4)
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(15);
+
     private final WebClient webClient;
     private final JobCrawlerService jobCrawlerService;
 
-    public WantedCrawler(JobCrawlerService jobCrawlerService) {
+    public WantedCrawler(JobCrawlerService jobCrawlerService,
+                         @Value("${wanted.base-url:https://www.wanted.co.kr}") String baseUrl) {
         this.jobCrawlerService = jobCrawlerService;
+
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) CONNECT_TIMEOUT.toMillis())
+                .responseTimeout(RESPONSE_TIMEOUT)
+                .doOnConnected(conn -> conn.addHandlerLast(
+                        new ReadTimeoutHandler((int) RESPONSE_TIMEOUT.getSeconds())));
+
         this.webClient = WebClient.builder()
-                .baseUrl("https://www.wanted.co.kr")
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .baseUrl(baseUrl)
                 .defaultHeader("User-Agent", "Mozilla/5.0")
                 .build();
     }

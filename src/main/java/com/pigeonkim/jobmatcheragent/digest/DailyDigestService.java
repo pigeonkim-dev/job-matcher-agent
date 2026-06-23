@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 @Service
 public class DailyDigestService {
@@ -32,13 +34,25 @@ public class DailyDigestService {
 
     private final String webhookUrl;
 
-    public void send() {
-        List<MatchResult> top5 = matchResultRepository.findAll().stream()
+    /**
+     * score 내림차순 상위 N개. null score는 제외하고, 정렬도 null-safe(nullsLast)하게
+     * 명시해 의도를 드러낸다. (eng-review: B3 방어적 강화) 테스트 가능하도록 분리.
+     */
+    static List<MatchResult> selectTop(List<MatchResult> all, int limit) {
+        return all.stream()
                 .filter(r -> r.getScore() != null)
-                .sorted((a, b) -> b.getScore() - a.getScore())
-                .limit(5)
+                .sorted(Comparator.comparing(MatchResult::getScore,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(limit)
                 .toList();
+    }
 
+    /**
+     * Slack 리포트 메시지를 만든다. 네트워크와 분리해 테스트 가능하도록 추출.
+     *
+     * @param lookup jobPostingId → JobPosting 조회 (없으면 빈 JobPosting)
+     */
+    static String buildMessage(List<MatchResult> top5, Function<Long, JobPosting> lookup) {
         StringBuilder msg = new StringBuilder();
         msg.append("🤖 *일일 채용 매칭 리포트* — ")
                 .append(LocalDate.now())
@@ -52,8 +66,7 @@ public class DailyDigestService {
 
             for (int i = 0; i < top5.size(); i++) {
                 MatchResult r = top5.get(i);
-                JobPosting p = jobPostingRepository.findById(r.getJobPostingId())
-                        .orElse(new JobPosting());
+                JobPosting p = lookup.apply(r.getJobPostingId());
 
                 msg.append(nums[i]).append(" *").append(p.getCompany()).append("*")
                         .append(" · ").append(p.getTitle()).append("\n")
@@ -63,10 +76,17 @@ public class DailyDigestService {
                         .append("   🔗 <").append(p.getUrl()).append("|공고 보기>\n\n");
             }
         }
+        return msg.toString();
+    }
+
+    public void send() {
+        List<MatchResult> top5 = selectTop(matchResultRepository.findAll(), 5);
+        String message = buildMessage(top5,
+                id -> jobPostingRepository.findById(id).orElseGet(JobPosting::new));
 
         slackClient.post()
                 .uri(webhookUrl)
-                .bodyValue(Map.of("text", msg.toString()))
+                .bodyValue(Map.of("text", message))
                 .retrieve()
                 .bodyToMono(String.class)
                 .block();
